@@ -1,0 +1,52 @@
+variables:
+  VERSION: 0.9.${CI_PIPELINE_ID}
+
+stages:
+  - deploy
+deploy:
+  stage: deploy
+  image: alpine/helm:3.16 
+ # when: manual
+  before_script:
+    - apk add --no-cache yq
+    - mkdir -p ~/.kube
+    - echo "$KUBECONFIG" > ~/.kube/config
+    - chmod 644 ~/.kube/config
+    - cat ~/.kube/config
+  script:
+    - |   
+      yq e ".version = \"$VERSION\"" -i chart/helm/Chart.yaml
+      helm package ./chart/helm
+      curl --upload-file ./generate-short-links-$VERSION.tgz --user $NEXUS_REPO_USER:$NEXUS_REPO_PASS $NEXUS_HELM_REPO
+      helm template ./chart/helm
+      helm lint ./chart/helm
+#      helm upgrade --install trouble \
+#      --timeout 15m \
+#      nexus/trouble        
+#      helm repo update
+#      helm template ./chart/helm
+#      helm lint ./chart/helm
+#      yq e ".version = \"$VERSION\"" -i helm-chart/sausage-store-chart/Chart.yaml
+#      helm package ./chart/helm
+#      curl --upload-file ./helm-$VERSION.tgz --user $NEXUS_REPO_USER:$NEXUS_REPO_PASS $NEXUS_HELM_REPO
+#      echo "Kubeconfig create automation"
+ #     VERSION=$(yq e '.version' sausage-store-chart/Chart.yaml)
+
+#       if [[ -n "$CI_COMMIT_REF_NAME" && -n "$(git diff --name-only HEAD^ HEAD | grep 'backend/')" ]]; then
+#        NEW_TAG_BACKEND=$(git log -1 --pretty=%B | sed -n 's/.*backend: \(.*\)/\1/p')
+#        yq e ".backend.image.tag = \"$NEW_TAG_BACKEND\"" -i helm-chart/sausage-store-chart/values.yaml
+#      fi
+#      if [[ -n "$CI_COMMIT_REF_NAME" && -n "$(git diff --name-only HEAD^ HEAD | grep 'frontend/')" ]]; then
+#        NEW_TAG_BACKEND=$(git log -1 --pretty=%B | sed -n 's/.*frontend: \(.*\)/\1/p')
+#        yq e ".frontend.image.tag = \"$NEW_TAG_FRONTEND\"" -i helm-chart/sausage-store-chart/values.yaml
+#      fi
+#      if [[ -n "$CI_COMMIT_REF_NAME" && -n "$(git diff --name-only HEAD^ HEAD | grep 'backend-report/')" ]]; then
+#        NEW_TAG_BACKEND=$(git log -1 --pretty=%B | sed -n 's/.*backend-report: \(.*\)/\1/p')
+#        yq e ".backend-report.image.tag = \"$NEW_TAG_BACKEND_REPORT\"" -i helm-chart/sausage-store-chart/values.yaml
+#      fi
+  after_script:
+    - rm ~/.kube/config 
+  only:
+    changes:
+      - chart/helm/**/*
+#      - app/**

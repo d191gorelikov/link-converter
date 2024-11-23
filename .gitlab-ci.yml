@@ -1,0 +1,24 @@
+stages:
+  - module-pipelines
+  - deploy
+
+
+backend:
+  stage: module-pipelines
+  trigger:
+    include:
+      - "/app/.gitlab-ci.yml"
+    strategy: depend
+  only:
+    changes:  
+      - app/**/*
+
+helm-chart:
+  stage: deploy
+  trigger:
+    include:
+      - "/chart/.gitlab-ci.yml"
+    strategy: depend
+  only:
+    changes:
+      - chart/helm/**/*

@@ -1,0 +1,39 @@
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  containers:
+   - name: postgres
+     image: postgres:13
+     imagePullPolicy: IfNotPresent
+     env:
+     - name: POSTGRES_DB
+       valueFrom:
+         secretKeyRef:
+           name: db-secret
+           key: dbname
+     - name: POSTGRES_USER
+       valueFrom:
+         secretKeyRef:
+           name: db-secret
+           key: username
+     - name: POSTGRES_PASSWORD
+       valueFrom:
+         secretKeyRef:
+           name: db-secret
+           key: password
+     ports:
+     - name: db
+       containerPort: {{ .Values.db.port }}
+     resources:
+      requests:
+        memory: "64Mi"
+        cpu: "100m"
+      limits:
+        memory: "128Mi"
+        cpu: "200m"
+

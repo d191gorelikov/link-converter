@@ -1,0 +1,54 @@
+cache:
+  paths:
+    - ${CI_PROJECT_DIR}/.m2/repository  
+
+variables:
+  VERSION: 1.0.${CI_PIPELINE_ID}
+#  JAVA_OPTS: -XX:MaxRAMPercentage=90
+
+stages:
+  - build
+  - test
+  - release
+
+include:
+  - template: Security/SAST.gitlab-ci.yml
+
+build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.9.0-debug
+    entrypoint: [""]
+  script:
+    - /kaniko/executor
+      --context "${CI_PROJECT_DIR}/app"
+      --dockerfile "${CI_PROJECT_DIR}/app/Dockerfile"
+      --destination "sausage-store/trouble:$CI_COMMIT_SHA"
+      --build-arg VERSION=$VERSION
+      --cache=true
+  variables:
+    SPRING_FLYWAY_ENABLED: "false"      
+
+spotbugs-sast:
+  stage: test
+  needs:
+    - build 
+  variables:
+    COMPILE: "false"
+    SAST_JAVA_VERSION: 11
+    SPRING_FLYWAY_ENABLED: "false"
+  
+
+    
+release:
+  variables:
+    GIT_STRATEGY: none
+  image:
+    name: gcr.io/go-containerregistry/crane:debug
+    entrypoint: [ "" ]
+  cache: [ ]
+  stage: release
+  before_script:
+    - crane auth login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - crane tag $CI_REGISTRY_IMAGE/trouble:$CI_COMMIT_SHA $VERSION

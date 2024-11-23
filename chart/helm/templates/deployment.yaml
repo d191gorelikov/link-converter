@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: generate-short-links-app
+spec:
+  replicas: {{ .Values.replicas }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 20%
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: generate-short-links
+  template:
+    metadata:
+      labels:
+        app: generate-short-links
+      annotations:
+        prometheus.io/path: /actuator/prometheus
+        prometheus.io/port: "8080"
+        prometheus.io/scrape: "true"
+    spec:
+      imagePullSecrets:
+        - name: docker-config-secret
+      containers:
+      - name: generate-short-links
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        command: ["java"]
+        args:
+        {{- range .Values.javaopts }}
+          - "{{ . }}"
+        {{- end }} 
+        {{- if .Values.devmode.enabled }}
+          - "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
+        {{- end }}
+          - "-jar"
+          - "/usr/src/app/trouble.jar"
+        {{- if .Values.devmode.enabled }}
+        imagePullPolicy: Always
+        {{- else }}
+        imagePullPolicy: IfNotPresent
+        {{- end }}
+        env:
+        - name: DB_HOST
+          value: {{ .Values.db.host }}
+        - name: DB_PORT
+          value: "{{ .Values.db.port }}"
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: dbname
+        - name: DB_LOGIN
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
+        startupProbe:
+          httpGet:
+            scheme: HTTP
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 12
+        livenessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /actuator/health/liveness
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            scheme: HTTP
+            path: /actuator/health/readiness
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 30
+          timeoutSeconds: 1
+          failureThreshold: 6
+        ports:
+        - name: web
+          containerPort: 8080
+        {{- if .Values.devmode.enabled }}
+        - name: debug
+          containerPort: 5005
+        {{- end }}
+        resources:
+          requests:
+            cpu: 0.3
+            memory: 200Mi
+          limits:
+            cpu: 1
+            memory: 500Mi
